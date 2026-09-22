@@ -1,0 +1,7 @@
+{
+  "name": "Transport Manager - Logística e Gestão",
+  "description": "Simulador executivo de gestão de transportes e logística empresarial: administre frotas, armazém, contratos, tecnologias, oficina e equipe.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
