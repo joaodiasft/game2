@@ -8,6 +8,8 @@ import {
   Bell,
   HardDrive,
   CheckCircle,
+  Sliders,
+  ShieldAlert,
 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 
@@ -19,53 +21,53 @@ export const ConfiguracoesView: React.FC = () => {
   const [language, setLanguage] = useState('Português (Brasil)');
 
   const handleSaveGame = () => {
-    showToast('Jogo salvo com sucesso localmente!');
+    showToast('Jogo e configurações salvos localmente com sucesso!');
   };
 
   const handleResetGame = () => {
-    if (window.confirm('Deseja realmente reiniciar seu progresso de jogo?')) {
+    if (window.confirm('Deseja realmente reiniciar todo o progresso do simulador?')) {
       localStorage.clear();
       window.location.reload();
     }
   };
 
   return (
-    <div className="flex-1 bg-[#f4f7fb] text-slate-800 overflow-y-auto p-4 space-y-4 font-sans select-none max-w-4xl mx-auto w-full">
+    <div className="flex-1 bg-[#080d1a] text-slate-100 overflow-y-auto p-5 space-y-5 select-none font-sans custom-scrollbar max-w-4xl mx-auto w-full">
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
-            <Settings className="w-5 h-5" />
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#0c162b] via-[#101e3b] to-[#0d172e] border border-slate-800 p-6 shadow-xl flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 text-cyan-400 flex items-center justify-center">
+            <Settings className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-base font-extrabold text-slate-900">
-              Configurações do Simulador
+            <h1 className="text-xl font-extrabold text-white tracking-tight">
+              Preferências &amp; Configurações do Sistema
             </h1>
-            <p className="text-xs text-slate-500">
-              Ajuste áudio, salvamento automático e preferências visuais.
+            <p className="text-xs text-slate-400 mt-0.5">
+              Ajustes de telemetria de áudio, taxa de simulação e armazenamento local
             </p>
           </div>
         </div>
 
         <button
           onClick={handleSaveGame}
-          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+          className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-cyan-500/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
         >
-          <Save className="w-3.5 h-3.5" /> Salvar Jogo
+          <Save className="w-4 h-4" /> Salvar Jogo
         </button>
       </div>
 
       {/* Audio settings */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 space-y-4">
-        <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-          <Volume2 className="w-4 h-4 text-blue-600" /> Preferências de Áudio &amp; Som
+      <div className="bg-[#0e1628] rounded-2xl p-5 border border-slate-800 shadow-xl space-y-4">
+        <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+          <Volume2 className="w-4 h-4 text-cyan-400" /> Preferências Sonoras &amp; Ambiente
         </h3>
 
-        <div className="space-y-3">
+        <div className="space-y-4 pt-1">
           <div>
-            <div className="flex justify-between text-xs text-slate-700 mb-1">
-              <span>Música Ambiente</span>
-              <span className="font-mono font-bold">{audioVolume}%</span>
+            <div className="flex justify-between text-xs text-slate-300 mb-1.5 font-medium">
+              <span>Música Ambiente &amp; Rádio dos Caminhoneiros</span>
+              <span className="font-mono font-bold text-cyan-400">{audioVolume}%</span>
             </div>
             <input
               type="range"
@@ -73,14 +75,14 @@ export const ConfiguracoesView: React.FC = () => {
               max="100"
               value={audioVolume}
               onChange={(e) => setAudioVolume(Number(e.target.value))}
-              className="w-full accent-blue-600 cursor-pointer"
+              className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
             />
           </div>
 
           <div>
-            <div className="flex justify-between text-xs text-slate-700 mb-1">
-              <span>Efeitos Sonoros (Caminhões, Rádio, Fábricas)</span>
-              <span className="font-mono font-bold">{sfxVolume}%</span>
+            <div className="flex justify-between text-xs text-slate-300 mb-1.5 font-medium">
+              <span>Efeitos Sonoros (Motores diesel, buzina, docas e freios a ar)</span>
+              <span className="font-mono font-bold text-cyan-400">{sfxVolume}%</span>
             </div>
             <input
               type="range"
@@ -88,57 +90,57 @@ export const ConfiguracoesView: React.FC = () => {
               max="100"
               value={sfxVolume}
               onChange={(e) => setSfxVolume(Number(e.target.value))}
-              className="w-full accent-blue-600 cursor-pointer"
+              className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg appearance-none"
             />
           </div>
         </div>
       </div>
 
       {/* Game System & Autosave */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/90 space-y-4">
-        <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
-          <HardDrive className="w-4 h-4 text-emerald-600" /> Sistema &amp; Dados
+      <div className="bg-[#0e1628] rounded-2xl p-5 border border-slate-800 shadow-xl space-y-4">
+        <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+          <HardDrive className="w-4 h-4 text-emerald-400" /> Persistência de Dados &amp; Sistema
         </h3>
 
-        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+        <div className="flex items-center justify-between py-3 border-b border-slate-800">
           <div>
-            <span className="text-xs font-bold text-slate-900 block">Salvamento Automático</span>
-            <span className="text-[11px] text-slate-500">Salva o progresso no navegador a cada 60 segundos</span>
+            <span className="text-xs font-bold text-white block">Salvamento Automático</span>
+            <span className="text-[11px] text-slate-400">Salva o progresso no navegador a cada 60 segundos</span>
           </div>
           <button
             onClick={() => setAutosave(!autosave)}
-            className={`w-12 h-6 rounded-full transition-colors relative ${autosave ? 'bg-emerald-600' : 'bg-slate-300'}`}
+            className={`w-12 h-6 rounded-full transition-colors relative cursor-pointer ${autosave ? 'bg-emerald-600' : 'bg-slate-700'}`}
           >
             <div className={`w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform ${autosave ? 'left-6.5' : 'left-0.5'}`} />
           </button>
         </div>
 
-        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+        <div className="flex items-center justify-between py-3 border-b border-slate-800">
           <div>
-            <span className="text-xs font-bold text-slate-900 block">Idioma da Interface</span>
-            <span className="text-[11px] text-slate-500">Localização textual dos contratos e relatórios</span>
+            <span className="text-xs font-bold text-white block">Idioma do Simulador</span>
+            <span className="text-[11px] text-slate-400">Termos fiscais, contratos e rotas rodoviárias</span>
           </div>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="bg-slate-50 border border-slate-200 text-xs font-semibold rounded-lg px-3 py-1.5 outline-none"
+            className="bg-[#091122] border border-slate-800 text-white rounded-xl px-3 py-1.5 text-xs font-semibold outline-none"
           >
-            <option>Português (Brasil)</option>
-            <option>English (US)</option>
-            <option>Español</option>
+            <option value="Português (Brasil)">Português (Brasil)</option>
+            <option value="English (US)">English (US)</option>
+            <option value="Español">Español</option>
           </select>
         </div>
 
         <div className="pt-2 flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-rose-700 block">Zona de Risco</span>
-            <span className="text-[11px] text-slate-500">Limpar dados locais e reiniciar empresa do zero</span>
+            <span className="text-xs font-bold text-rose-400 block">Reiniciar Progresso do Simulador</span>
+            <span className="text-[11px] text-slate-400">Apaga a transportadora e reinicia um novo jogo</span>
           </div>
           <button
             onClick={handleResetGame}
-            className="px-3.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-rose-950/60 hover:bg-rose-900 border border-rose-500/30 text-rose-300 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <RotateCcw className="w-3.5 h-3.5" /> Reiniciar Jogo
+            <RotateCcw className="w-3.5 h-3.5" /> Resetar Dados
           </button>
         </div>
       </div>

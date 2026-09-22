@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   LayoutDashboard,
+  Compass,
   Map,
   ClipboardList,
   Truck,
@@ -24,13 +25,24 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   badge?: number | string;
+  badgeColor?: string;
 }
 
 export const Sidebar: React.FC = () => {
-  const { activeTab, setActiveTab } = useGame();
+  const { activeTab, setActiveTab, company, crises } = useGame();
+
+  const currentCrisis = crises[`crise_ato_${company.currentAct}`];
+  const hasPendingCrisis = currentCrisis?.status === 'pending';
 
   const navItems: NavItem[] = [
     { id: 'dashboard', label: 'Painel Principal', icon: LayoutDashboard },
+    {
+      id: 'campanha',
+      label: 'Campanha & Atos',
+      icon: Compass,
+      badge: hasPendingCrisis ? 'Crise!' : `Ato ${company.currentAct}`,
+      badgeColor: hasPendingCrisis ? 'bg-rose-500 text-white animate-pulse' : 'bg-cyan-600 text-white',
+    },
     { id: 'mapa', label: 'Mapa', icon: Map },
     { id: 'pedidos', label: 'Pedidos', icon: ClipboardList, badge: 4 },
     { id: 'entregas', label: 'Entregas', icon: Truck },
@@ -104,7 +116,11 @@ export const Sidebar: React.FC = () => {
               </div>
 
               {item.badge && (
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-500 text-white shadow-sm shadow-rose-500/40">
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold shadow-sm ${
+                    item.badgeColor || 'bg-rose-500 text-white shadow-rose-500/40'
+                  }`}
+                >
                   {item.badge}
                 </span>
               )}

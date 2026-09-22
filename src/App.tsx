@@ -2,6 +2,7 @@ import React from 'react';
 import { GameProvider, useGame } from './context/GameContext';
 import { TopBar } from './components/layout/TopBar';
 import { Sidebar } from './components/layout/Sidebar';
+import { CampanhaView } from './components/views/CampanhaView';
 import { RelatoriosView } from './components/views/RelatoriosView';
 import { TecnologiaView } from './components/views/TecnologiaView';
 import { RHView } from './components/views/RHView';
@@ -17,14 +18,25 @@ import { ArmazemView } from './components/views/ArmazemView';
 import { FinancasView } from './components/views/FinancasView';
 import { ConfiguracoesView } from './components/views/ConfiguracoesView';
 import { CandidateModal } from './components/modals/CandidateModal';
+import { CrisisModal } from './components/modals/CrisisModal';
+import { NpcDialogueModal } from './components/modals/NpcDialogueModal';
 
 const MainContent: React.FC = () => {
-  const { activeTab, toastMessage } = useGame();
+  const {
+    activeTab,
+    toastMessage,
+    activeCrisisModal,
+    closeCrisisModal,
+    selectedNpcForChat,
+    closeNpcChat,
+  } = useGame();
 
   const renderActiveView = () => {
     switch (activeTab) {
       case 'dashboard':
         return <DashboardView />;
+      case 'campanha':
+        return <CampanhaView />;
       case 'mapa':
         return <MapaView />;
       case 'pedidos':
@@ -72,6 +84,15 @@ const MainContent: React.FC = () => {
 
       {/* Interactive Candidate Inspection Modal */}
       <CandidateModal />
+
+      {/* Global Campaign Modals */}
+      {activeCrisisModal && (
+        <CrisisModal crisis={activeCrisisModal} onClose={closeCrisisModal} />
+      )}
+
+      {selectedNpcForChat && (
+        <NpcDialogueModal npc={selectedNpcForChat} onClose={closeNpcChat} />
+      )}
 
       {/* Toast Notification Banner */}
       {toastMessage && (

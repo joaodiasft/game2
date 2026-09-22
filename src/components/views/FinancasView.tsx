@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   DollarSign,
   TrendingUp,
@@ -9,95 +9,188 @@ import {
   PieChart,
   ArrowUpRight,
   ArrowDownLeft,
+  Wallet,
+  ShieldCheck,
+  Calendar,
+  Percent,
 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 
 export const FinancasView: React.FC = () => {
   const { company, showToast } = useGame();
+  const [filterType, setFilterType] = useState<'all' | 'in' | 'out'>('all');
 
   const transactions = [
-    { desc: 'Faturamento Frete Alvorada', type: 'in', val: '+$ 24.000', cat: 'Contratos' },
-    { desc: 'Abastecimento Posto Central (Diesel)', type: 'out', val: '-$ 8.450', cat: 'Combustível' },
-    { desc: 'Peças & Manutenção de Freios', type: 'out', val: '-$ 3.200', cat: 'Oficina' },
-    { desc: 'Adiantamento Metalúrgica Vale do Aço', type: 'in', val: '+$ 18.500', cat: 'Contratos' },
-    { desc: 'Folha de Pagamento Quinzenal', type: 'out', val: '-$ 43.365', cat: 'Salários' },
+    { desc: 'Faturamento Frete Alvorada (14t)', type: 'in', val: '+R$ 24.000', cat: 'Contratos Comerciais', date: 'Hoje 14:15' },
+    { desc: 'Abastecimento Posto Central (Diesel S10)', type: 'out', val: '-R$ 8.450', cat: 'Combustível', date: 'Hoje 11:30' },
+    { desc: 'Peças & Manutenção Freios Baia 2', type: 'out', val: '-R$ 3.200', cat: 'Oficina & Peças', date: 'Hoje 09:40' },
+    { desc: 'Adiantamento Metalúrgica Vale do Aço', type: 'in', val: '+R$ 18.500', cat: 'Carga Pesada', date: 'Ontem 17:00' },
+    { desc: 'Folha de Pagamento Quinzenal (42 Colab.)', type: 'out', val: '-R$ 43.365', cat: 'Recursos Humanos', date: 'Ontem 15:00' },
+    { desc: 'Pedágio Rodovias Integradas Leste', type: 'out', val: '-R$ 1.120', cat: 'Pedágios', date: 'Ontem 10:20' },
+    { desc: 'Frete Farmacêutica Vitalis SLA Crítico', type: 'in', val: '+R$ 12.800', cat: 'Medicamentos', date: 'Anteontem' },
   ];
 
+  const filteredTransactions = transactions.filter((t) => {
+    if (filterType === 'all') return true;
+    return t.type === filterType;
+  });
+
   return (
-    <div className="flex-1 bg-[#f4f7fb] text-slate-800 overflow-y-auto p-4 space-y-4 font-sans select-none">
+    <div className="flex-1 bg-[#080d1a] text-slate-100 overflow-y-auto p-5 space-y-5 select-none font-sans custom-scrollbar">
       {/* Header */}
-      <div className="flex items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <DollarSign className="w-5 h-5" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#0e1628] p-5 rounded-2xl border border-slate-800 shadow-xl">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shrink-0">
+            <DollarSign className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-base font-extrabold text-slate-900">
-              Controle Financeiro &amp; DRE
-            </h1>
-            <p className="text-xs text-slate-500">
-              Fluxo de caixa em tempo real, rentabilidade por quilômetro e linhas de crédito.
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-extrabold text-white tracking-tight">
+                Tesouraria Executiva &amp; DRE
+              </h1>
+              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-500/30">
+                Fluxo Auditado
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Gestão de caixa em tempo real, rentabilidade por quilômetro rodado e linhas de investimento
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => showToast('Simulando linha de crédito bancária...')}
-          className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
-        >
-          <Landmark className="w-3.5 h-3.5" /> Solicitar Empréstimo
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => showToast('Simulando linha de capital de giro BNDES com carência de 6 meses...')}
+            className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-2 cursor-pointer active:scale-95"
+          >
+            <Landmark className="w-4 h-4" /> Tomar Crédito de Expansão
+          </button>
+        </div>
       </div>
 
       {/* Top 4 Financial Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200/80">
-          <span className="text-[11px] text-slate-500 block">Saldo Atual</span>
-          <span className="text-2xl font-extrabold text-emerald-600 font-mono">
-            $ {company.cash.toLocaleString('pt-BR')}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-[#0e1628] rounded-xl p-4 border border-slate-800 shadow-md">
+          <span className="text-xs text-slate-400 block font-medium">Saldo Líquido em Conta</span>
+          <span className="text-2xl font-black text-emerald-400 font-mono tracking-tight block mt-1">
+            R$ {company.cash.toLocaleString('pt-BR')}
           </span>
-          <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">+14% vs mês ant.</span>
+          <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-slate-800/80">
+            <span className="text-emerald-400 font-semibold flex items-center gap-1">
+              <TrendingUp className="w-3.5 h-3.5" /> +14.2%
+            </span>
+            <span className="text-slate-500 text-[11px]">vs. mês anterior</span>
+          </div>
         </div>
-        <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200/80">
-          <span className="text-[11px] text-slate-500 block">Lucro Líquido Hoje</span>
-          <span className="text-2xl font-extrabold text-slate-900 font-mono">
-            +$ {company.dailyProfit.toLocaleString('pt-BR')}
+
+        <div className="bg-[#0e1628] rounded-xl p-4 border border-slate-800 shadow-md">
+          <span className="text-xs text-slate-400 block font-medium">Lucro do Dia</span>
+          <span className="text-2xl font-black text-white font-mono tracking-tight block mt-1">
+            +R$ {company.dailyProfit.toLocaleString('pt-BR')}
           </span>
-          <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">Margem líq. 28%</span>
+          <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-slate-800/80">
+            <span className="text-cyan-400 font-semibold">Margem Líq. 28.4%</span>
+            <span className="text-slate-500 text-[11px]">Meta batida</span>
+          </div>
         </div>
-        <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200/80">
-          <span className="text-[11px] text-slate-500 block">Custo Fixo Mensal</span>
-          <span className="text-2xl font-extrabold text-slate-900 font-mono">$ 86.730</span>
-          <span className="text-[10px] text-slate-500 block mt-0.5">Folha &amp; Sedes</span>
+
+        <div className="bg-[#0e1628] rounded-xl p-4 border border-slate-800 shadow-md">
+          <span className="text-xs text-slate-400 block font-medium">Custos Fixos Mensais</span>
+          <span className="text-2xl font-black text-slate-200 font-mono tracking-tight block mt-1">
+            R$ 86.730
+          </span>
+          <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-slate-800/80">
+            <span className="text-slate-400">Folha &amp; Sedes</span>
+            <span className="text-slate-500 text-[11px]">42 contratos</span>
+          </div>
         </div>
-        <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200/80">
-          <span className="text-[11px] text-slate-500 block">Crédito Disponível</span>
-          <span className="text-2xl font-extrabold text-blue-600 font-mono">$ 250.000</span>
-          <span className="text-[10px] text-blue-700 font-bold block mt-0.5">Taxa 1.2% a.m.</span>
+
+        <div className="bg-[#0e1628] rounded-xl p-4 border border-slate-800 shadow-md">
+          <span className="text-xs text-slate-400 block font-medium">Linha Pré-Aprovada</span>
+          <span className="text-2xl font-black text-cyan-400 font-mono tracking-tight block mt-1">
+            R$ 250.000
+          </span>
+          <div className="flex items-center justify-between text-xs mt-2 pt-2 border-t border-slate-800/80">
+            <span className="text-amber-400 font-medium">Taxa 1.15% a.m.</span>
+            <span className="text-slate-500 text-[11px]">Banco Santander</span>
+          </div>
         </div>
       </div>
 
       {/* Transaction Feed */}
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/90">
-        <h3 className="text-xs font-bold text-slate-900 mb-3">Extrato Recente de Entradas e Saídas</h3>
+      <div className="bg-[#0e1628] rounded-2xl p-5 border border-slate-800 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-white">Extrato Consolidado de Receitas e Despesas</h3>
+            <p className="text-[11px] text-slate-400">Lançamentos categorizados e vinculados a ordens de serviço</p>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex items-center gap-1.5 text-xs">
+            <button
+              onClick={() => setFilterType('all')}
+              className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                filterType === 'all'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                  : 'bg-[#141f38] text-slate-400 hover:text-white border border-slate-700'
+              }`}
+            >
+              Todos
+            </button>
+            <button
+              onClick={() => setFilterType('in')}
+              className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                filterType === 'in'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'bg-[#141f38] text-slate-400 hover:text-white border border-slate-700'
+              }`}
+            >
+              Entradas (+)
+            </button>
+            <button
+              onClick={() => setFilterType('out')}
+              className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                filterType === 'out'
+                  ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  : 'bg-[#141f38] text-slate-400 hover:text-white border border-slate-700'
+              }`}
+            >
+              Saídas (-)
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2 text-xs">
-          {transactions.map((t, idx) => (
-            <div key={idx} className="p-2 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
-                  t.type === 'in' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
-                }`}>
+          {filteredTransactions.map((t, idx) => (
+            <div
+              key={idx}
+              className="p-3 rounded-xl bg-[#091122] border border-slate-800/80 flex items-center justify-between hover:border-slate-700 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+                    t.type === 'in'
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                      : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+                  }`}
+                >
                   {t.type === 'in' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                 </div>
                 <div>
-                  <span className="font-bold text-slate-800 text-[11px] block">{t.desc}</span>
-                  <span className="text-[10px] text-slate-400">{t.cat}</span>
+                  <span className="font-bold text-white text-xs block">{t.desc}</span>
+                  <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
+                    <span>{t.cat}</span>
+                    <span>•</span>
+                    <span className="font-mono">{t.date}</span>
+                  </div>
                 </div>
               </div>
 
-              <span className={`font-mono font-extrabold text-xs ${
-                t.type === 'in' ? 'text-emerald-600' : 'text-rose-600'
-              }`}>
+              <span
+                className={`font-mono font-bold text-sm ${
+                  t.type === 'in' ? 'text-emerald-400' : 'text-rose-400'
+                }`}
+              >
                 {t.val}
               </span>
             </div>

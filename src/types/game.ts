@@ -1,5 +1,6 @@
 export type NavigationTab =
   | 'dashboard'
+  | 'campanha'
   | 'mapa'
   | 'pedidos'
   | 'entregas'
@@ -31,6 +32,7 @@ export interface CompanyState {
   gameSpeed: number; // 1, 2, 5
   temperature: number; // 24
   cityName: string; // "Rivermouth City"
+  currentAct: number; // 1 to 7
 }
 
 export interface TechNode {
@@ -164,4 +166,91 @@ export interface WarehouseItem {
   unit: string;
   stockPercentage: number;
   alert?: 'Estoque baixo' | 'Alta demanda prevista' | 'Repor em breve';
+}
+
+// ==========================================
+// DOCUMENTO 12 - JORNADA DO JOGADOR TYPES
+// ==========================================
+
+export interface CampaignObjective {
+  id: string;
+  title: string;
+  description: string;
+  current: number;
+  target: number;
+  completed: boolean;
+  reward: string;
+}
+
+export interface CrisisChoice {
+  id: string;
+  label: string;
+  description: string;
+  tradeoff: string;
+  impactSummary: string;
+  impact: {
+    cash?: number;
+    localReputation?: number;
+    regionalReputation?: number;
+    dailyProfit?: number;
+    xp?: number;
+    moralChange?: number;
+    specialBenefit?: string;
+  };
+}
+
+export interface CampaignCrisis {
+  id: string;
+  act: number;
+  title: string;
+  subtitle: string;
+  teaser: string;
+  contextStory: string;
+  npcId: string;
+  npcName: string;
+  npcRole: string;
+  npcAvatar: string;
+  warningLevel: 'mild' | 'severe' | 'critical';
+  status: 'pending' | 'resolved';
+  resolvedOptionId?: string;
+  resolutionSummary?: string;
+  choices: CrisisChoice[];
+}
+
+export interface CampaignNPC {
+  id: string;
+  name: string;
+  role: string;
+  actIntroduced: number;
+  avatar: string;
+  badge: string;
+  description: string;
+  affinity: number; // 0 to 100
+  perk: string;
+  dialogues: {
+    quote: string;
+    context: string;
+    responseOption: string;
+  }[];
+}
+
+export interface CampaignAct {
+  number: number;
+  title: string;
+  subtitle: string;
+  levelRange: string;
+  minLevel: number;
+  maxLevel: number;
+  fantasy: string;
+  visualSummary: string;
+  visualIcon: string;
+  hqName: string;
+  hqFeatures: string[];
+  hqVehicleSlots: number;
+  hqStaffSlots: number;
+  npcs: string[]; // NPC ids
+  unlocks: string[];
+  crisisId: string;
+  status: 'completed' | 'active' | 'locked';
+  objectives: CampaignObjective[];
 }

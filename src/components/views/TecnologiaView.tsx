@@ -66,9 +66,9 @@ export const TecnologiaView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 bg-[#070e1f] text-slate-200 overflow-y-auto p-4 space-y-4 font-sans select-none">
+    <div className="flex-1 bg-[#080d1a] text-slate-100 overflow-y-auto p-5 space-y-5 select-none font-sans custom-scrollbar">
       {/* 1. Header Banner */}
-      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#0d1c3b] via-[#102552] to-[#0c1833] text-white p-5 shadow-xl border border-cyan-500/30">
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#0c162b] via-[#101e3b] to-[#0d172e] text-white p-6 shadow-xl border border-slate-800">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-700 p-0.5 shadow-lg shadow-cyan-500/20 flex items-center justify-center shrink-0">

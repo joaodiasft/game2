@@ -12,7 +12,21 @@ import {
   Facility,
   Competitor,
   TrainingProgram,
+  CampaignAct,
+  CampaignCrisis,
+  CampaignNPC,
 } from '../types/game';
+import { INITIAL_ACTS, CAMPAIGN_NPCS, CAMPAIGN_CRISES } from '../data/campaignData';
+
+interface CrisesHistoryEntry {
+  crisisId: string;
+  act: number;
+  crisisTitle: string;
+  choiceId: string;
+  choiceLabel: string;
+  date: string;
+  impactSummary: string;
+}
 
 interface GameContextType {
   activeTab: NavigationTab;
@@ -62,6 +76,22 @@ interface GameContextType {
   competitors: Competitor[];
   attackCompetitor: (competitorId: string, action: 'steal_contract' | 'price_war') => void;
 
+  // CAMPAIGN (DOCUMENTO 12)
+  acts: CampaignAct[];
+  currentActNumber: number;
+  npcs: CampaignNPC[];
+  crises: Record<string, CampaignCrisis>;
+  crisesHistory: CrisesHistoryEntry[];
+  activeCrisisModal: CampaignCrisis | null;
+  selectedNpcForChat: CampaignNPC | null;
+  openCrisisModal: (crisis: CampaignCrisis) => void;
+  closeCrisisModal: () => void;
+  resolveCrisis: (crisisId: string, choiceId: string) => void;
+  advanceAct: (targetAct?: number) => void;
+  openNpcChat: (npc: CampaignNPC) => void;
+  closeNpcChat: () => void;
+  talkToNpc: (npcId: string, responseIndex?: number) => void;
+
   // Notification Toast
   toastMessage: string | null;
   showToast: (msg: string) => void;
@@ -70,7 +100,7 @@ interface GameContextType {
 const GameContext = createContext<GameContextType | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [activeTab, setActiveTab] = useState<NavigationTab>('relatorios');
+  const [activeTab, setActiveTab] = useState<NavigationTab>('campanha');
 
   const [company, setCompany] = useState<CompanyState>({
     name: 'Barravento Logistics',
@@ -88,6 +118,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     gameSpeed: 1,
     temperature: 24,
     cityName: 'Rivermouth City',
+    currentAct: 1,
   });
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -95,7 +126,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((prev) => (prev === msg ? null : prev));
-    }, 3500);
+    }, 4000);
   };
 
   const updateCompanyName = (name: string, slogan: string) => {
@@ -111,199 +142,311 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCompany((prev) => ({ ...prev, gameSpeed: speed, isPaused: false }));
   };
 
-  // Tech state
+  // ==========================================
+  // CAMPAIGN SYSTEM (DOCUMENTO 12)
+  // ==========================================
+  const [acts, setActs] = useState<CampaignAct[]>(INITIAL_ACTS);
+  const [npcs, setNpcs] = useState<CampaignNPC[]>(CAMPAIGN_NPCS);
+  const [crises, setCrises] = useState<Record<string, CampaignCrisis>>(CAMPAIGN_CRISES);
+  const [crisesHistory, setCrisesHistory] = useState<CrisesHistoryEntry[]>([]);
+  const [activeCrisisModal, setActiveCrisisModal] = useState<CampaignCrisis | null>(null);
+  const [selectedNpcForChat, setSelectedNpcForChat] = useState<CampaignNPC | null>(null);
+
+  const openCrisisModal = (crisis: CampaignCrisis) => {
+    setActiveCrisisModal(crisis);
+  };
+
+  const closeCrisisModal = () => {
+    setActiveCrisisModal(null);
+  };
+
+  const openNpcChat = (npc: CampaignNPC) => {
+    setSelectedNpcForChat(npc);
+  };
+
+  const closeNpcChat = () => {
+    setSelectedNpcForChat(null);
+  };
+
+  const resolveCrisis = (crisisId: string, choiceId: string) => {
+    const crisis = crises[crisisId];
+    if (!crisis) return;
+
+    const choice = crisis.choices.find((c) => c.id === choiceId);
+    if (!choice) return;
+
+    // Apply mechanical impacts
+    setCompany((prev) => {
+      const nextCash = Math.max(0, prev.cash + (choice.impact.cash || 0));
+      const nextLocalRep = Math.min(100, Math.max(0, prev.localReputation + (choice.impact.localReputation || 0)));
+      const nextRegionalRep = Math.min(100, Math.max(0, prev.regionalReputation + (choice.impact.regionalReputation || 0)));
+      const nextDailyProfit = Math.max(0, prev.dailyProfit + (choice.impact.dailyProfit || 0));
+      const nextXp = prev.xp + (choice.impact.xp || 150);
+
+      return {
+        ...prev,
+        cash: nextCash,
+        localReputation: nextLocalRep,
+        regionalReputation: nextRegionalRep,
+        dailyProfit: nextDailyProfit,
+        xp: nextXp,
+      };
+    });
+
+    // Mark crisis as resolved
+    setCrises((prev) => ({
+      ...prev,
+      [crisisId]: {
+        ...crisis,
+        status: 'resolved',
+        resolvedOptionId: choiceId,
+        resolutionSummary: choice.impactSummary,
+      },
+    }));
+
+    // Update Act objectives
+    setActs((prev) =>
+      prev.map((act) => {
+        if (act.crisisId === crisisId) {
+          const updatedObjs = act.objectives.map((obj) =>
+            obj.id.includes('Crise') || obj.description.toLowerCase().includes('crise') || obj.id.endsWith('_3') || obj.id.endsWith('_2')
+              ? { ...obj, current: 1, completed: true }
+              : obj
+          );
+          return { ...act, objectives: updatedObjs };
+        }
+        return act;
+      })
+    );
+
+    // Save in history
+    setCrisesHistory((prev) => [
+      {
+        crisisId,
+        act: crisis.act,
+        crisisTitle: crisis.title,
+        choiceId,
+        choiceLabel: choice.label,
+        date: company.gameDate,
+        impactSummary: choice.impactSummary,
+      },
+      ...prev,
+    ]);
+
+    // Increase NPC affinity slightly
+    setNpcs((prev) =>
+      prev.map((npc) => (npc.id === crisis.npcId ? { ...npc, affinity: Math.min(100, npc.affinity + 6) } : npc))
+    );
+
+    setActiveCrisisModal(null);
+    showToast(`Decisão tomada: "${choice.label}". Impactos aplicados à empresa!`);
+  };
+
+  const advanceAct = (targetAct?: number) => {
+    const nextActNumber = targetAct || Math.min(7, company.currentAct + 1);
+
+    setCompany((prev) => {
+      const minLevelForAct = acts.find((a) => a.number === nextActNumber)?.minLevel || prev.level + 1;
+      return {
+        ...prev,
+        currentAct: nextActNumber,
+        level: Math.max(prev.level, minLevelForAct),
+        xp: 100,
+        xpToNextLevel: 1000 + nextActNumber * 500,
+      };
+    });
+
+    setActs((prev) =>
+      prev.map((act) => {
+        if (act.number < nextActNumber) {
+          return { ...act, status: 'completed' };
+        } else if (act.number === nextActNumber) {
+          return { ...act, status: 'active' };
+        } else {
+          return { ...act, status: 'locked' };
+        }
+      })
+    );
+
+    const nextActData = acts.find((a) => a.number === nextActNumber);
+    showToast(`🎉 Parabéns! Sua empresa avançou para o Ato ${nextActNumber}: ${nextActData?.title}!`);
+  };
+
+  const talkToNpc = (npcId: string, responseIndex = 0) => {
+    const npc = npcs.find((n) => n.id === npcId);
+    if (!npc) return;
+
+    setNpcs((prev) =>
+      prev.map((n) => (n.id === npcId ? { ...n, affinity: Math.min(100, n.affinity + 3) } : n))
+    );
+
+    const dialogue = npc.dialogues[responseIndex % npc.dialogues.length];
+    showToast(`${npc.name}: "${dialogue.quote}"`);
+  };
+
+  // ==========================================
+  // TECH TREE
+  // ==========================================
   const [techNodes, setTechNodes] = useState<TechNode[]>([
     {
       id: 'roteirizacao',
       name: 'Roteirização Avançada',
-      level: 1,
+      level: 2,
       maxLevel: 3,
       status: 'completed',
-      icon: 'Route',
-      cost: 800,
-      durationDays: 2,
-      description: 'Algoritmos dinâmicos de cálculo de rotas considerando tráfego, pedágios e relevo.',
+      icon: 'MapPin',
+      cost: 4500,
+      durationDays: 3,
+      description: 'Algoritmos heurísticos para cálculo de rotas com menores paradas e menor queima de combustível.',
       benefits: [
-        { label: 'Custos de Combustível', value: '-15%' },
-        { label: 'Tempo de Viagem', value: '-12%' },
+        { label: 'Consumo de Combustível', value: '-8%' },
+        { label: 'Tempo Médio de Rota', value: '-12 min' },
       ],
-      unlocks: ['Manutenção Preditiva'],
+      unlocks: ['telemetria'],
       parents: [],
+      branch: 'ops',
+    },
+    {
+      id: 'telemetria',
+      name: 'Telemetria em Tempo Real',
+      level: 1,
+      maxLevel: 2,
+      status: 'completed',
+      icon: 'Radio',
+      cost: 6200,
+      durationDays: 4,
+      description: 'Dispositivos IoT instalados nos veículos com transmissão contínua de velocidade, RPM e frenagens bruscas.',
+      benefits: [
+        { label: 'Desgaste dos Freios', value: '-15%' },
+        { label: 'Visibilidade da Frota', value: '100% Ao Vivo' },
+      ],
+      unlocks: ['manutencao_preditiva'],
+      parents: ['roteirizacao'],
       branch: 'ops',
     },
     {
       id: 'manutencao_preditiva',
       name: 'Manutenção Preditiva',
-      level: 1,
-      maxLevel: 3,
+      level: 0,
+      maxLevel: 2,
       status: 'researching',
       icon: 'Wrench',
-      cost: 1200,
-      durationDays: 3,
-      description: 'Analisa dados de telemetria e histórico de uso para prever falhas e agendar manutenções no momento ideal.',
+      cost: 9800,
+      durationDays: 5,
+      description: 'Modelos de machine learning que antecipam falhas mecânicas com base na vibração e quilometragem.',
       benefits: [
-        { label: 'Custos com manutenção', value: '-25%' },
-        { label: 'Tempo de parada', value: '-40%' },
-        { label: 'Vida útil da frota', value: '+15%' },
-        { label: 'Confiabilidade', value: '+10%' },
+        { label: 'Quebras Inesperadas', value: '-35%' },
+        { label: 'Custo de Reparo Corretivo', value: '-20%' },
       ],
-      unlocks: [
-        'Nv. 2: Diagnóstico automático (em breve)',
-        'Nv. 3: Integração com fornecedores',
-        'Nv. 4: IA de manutenção (requer Análise Financeira Nv. 1)',
-      ],
-      parents: ['roteirizacao'],
+      unlocks: ['frota_autonoma'],
+      parents: ['telemetria'],
       branch: 'ops',
     },
     {
-      id: 'telemetria',
-      name: 'Telemetria',
-      level: 1,
-      maxLevel: 3,
-      status: 'completed',
-      icon: 'Radio',
-      cost: 950,
-      durationDays: 2,
-      description: 'Sensores veiculares para monitorar velocidade, rotação de motor e consumo instantâneo.',
-      benefits: [
-        { label: 'Consumo Médio', value: '-10%' },
-        { label: 'Segurança Viária', value: '+20%' },
-      ],
-      unlocks: ['Automação de Armazém'],
-      parents: [],
-      branch: 'warehouse',
-    },
-    {
-      id: 'rastreamento',
-      name: 'Rastreamento em Tempo Real',
-      level: 1,
-      maxLevel: 3,
-      status: 'completed',
-      icon: 'Truck',
-      cost: 700,
-      durationDays: 2,
-      description: 'GPS e conectividade 4G/5G com atualização em tempo real para os clientes e despachantes.',
-      benefits: [
-        { label: 'Satisfação do Cliente', value: '+18%' },
-        { label: 'Eficiência de Despacho', value: '+14%' },
-      ],
-      unlocks: ['Automação de Armazém'],
-      parents: [],
-      branch: 'warehouse',
-    },
-    {
-      id: 'automacao_armazem',
-      name: 'Automação de Armazém',
-      level: 1,
-      maxLevel: 3,
-      status: 'available',
-      icon: 'Bot',
-      cost: 1500,
-      durationDays: 3,
-      description: 'Sistemas robotizados e esteiras inteligentes para picking e organização de paletes.',
-      benefits: [
-        { label: 'Velocidade de Carga', value: '+30%' },
-        { label: 'Erros de Separação', value: '-60%' },
-      ],
-      unlocks: ['Contratos Premium'],
-      parents: ['telemetria', 'rastreamento'],
-      branch: 'warehouse',
-    },
-    {
-      id: 'crm_avancado',
-      name: 'CRM Avançado',
+      id: 'frota_autonoma',
+      name: 'Assistência de Condução Autônoma',
       level: 0,
-      maxLevel: 3,
-      status: 'locked',
-      icon: 'Users',
-      cost: 1800,
-      durationDays: 4,
-      description: 'Gestão integrada de clientes, contratos e histórico de negociações estratégicas.',
+      maxLevel: 1,
+      status: 'available',
+      icon: 'Cpu',
+      cost: 16500,
+      durationDays: 8,
+      description: 'Piloto automático adaptativo para comboios em rodovias estaduais e controle de faixa.',
       benefits: [
-        { label: 'Retenção de Clientes', value: '+25%' },
-        { label: 'Margem Contratual', value: '+8%' },
+        { label: 'Fadiga do Motorista', value: '-40%' },
+        { label: 'Segurança Rodoviária', value: '+25%' },
       ],
-      unlocks: ['Análise Financeira'],
+      unlocks: [],
       parents: ['manutencao_preditiva'],
       branch: 'ops',
     },
     {
-      id: 'contratos_premium',
-      name: 'Contratos Premium',
-      level: 0,
-      maxLevel: 3,
-      status: 'locked',
-      icon: 'FileText',
-      cost: 2200,
-      durationDays: 4,
-      description: 'Habilita contratos corporativos de alto valor e carga dedicada internacional.',
+      id: 'wms_estante',
+      name: 'Verticalização WMS & Código de Barras',
+      level: 1,
+      maxLevel: 2,
+      status: 'completed',
+      icon: 'Boxes',
+      cost: 5400,
+      durationDays: 3,
+      description: 'Organização em estantes verticais com endereçamento por rádio frequência e leitores biométricos.',
       benefits: [
-        { label: 'Ticket Médio', value: '+45%' },
-        { label: 'Reputação Regional', value: '+15%' },
+        { label: 'Acuracidade de Estoque', value: '99.4%' },
+        { label: 'Capacidade de Armazenagem', value: '+30%' },
       ],
-      unlocks: ['Previsão de Demanda'],
-      parents: ['automacao_armazem'],
+      unlocks: ['esteiras_sorting'],
+      parents: [],
       branch: 'warehouse',
     },
     {
-      id: 'analise_financeira',
-      name: 'Análise Financeira',
+      id: 'esteiras_sorting',
+      name: 'Esteiras de Separação Rápida (Sorting)',
       level: 0,
-      maxLevel: 3,
-      status: 'locked',
-      icon: 'BarChart2',
-      cost: 5600,
-      durationDays: 5,
-      description: 'Módulo preditivo de fluxo de caixa, precificação dinâmica por trajeto e ROI por veículo.',
+      maxLevel: 2,
+      status: 'available',
+      icon: 'Layers',
+      cost: 11200,
+      durationDays: 6,
+      description: 'Esteiras motorizadas de triagem contínua para expedição de até 800 pacotes por hora.',
       benefits: [
-        { label: 'Lucro Líquido', value: '+14%' },
-        { label: 'Previsibilidade', value: '+35%' },
+        { label: 'Velocidade de Despacho', value: '+45%' },
+        { label: 'Erros de Separação', value: '-80%' },
       ],
-      unlocks: ['Centro de Distribuição Avançado'],
-      parents: ['crm_avancado'],
-      branch: 'ops',
+      unlocks: ['cross_docking_ai'],
+      parents: ['wms_estante'],
+      branch: 'warehouse',
     },
     {
-      id: 'previsao_demanda',
-      name: 'Previsão de Demanda',
+      id: 'cross_docking_ai',
+      name: 'Cross-Docking Automatizado',
       level: 0,
-      maxLevel: 3,
+      maxLevel: 1,
       status: 'locked',
-      icon: 'TrendingUp',
-      cost: 2000,
-      durationDays: 6,
-      description: 'Inteligência de mercado para antecipar sazonalidades, safras agrícolas e picos de e-commerce.',
+      icon: 'Repeat',
+      cost: 22000,
+      durationDays: 10,
+      description: 'Transferência direta de carga de caminhões de linha para vans de última milha sem estocagem prévia.',
       benefits: [
-        { label: 'Ocupação da Frota', value: '+18%' },
-        { label: 'Ociosidade', value: '-22%' },
+        { label: 'Tempo de Permanência em Hub', value: '< 20 min' },
+        { label: 'Custo de Armazenagem', value: '-50%' },
       ],
-      unlocks: ['Centro de Distribuição Avançado'],
-      parents: ['contratos_premium'],
+      unlocks: [],
+      parents: ['esteiras_sorting'],
       branch: 'warehouse',
     },
   ]);
 
   const [selectedTechId, setSelectedTechId] = useState<string>('manutencao_preditiva');
   const [researchQueue, setResearchQueue] = useState<ResearchQueueItem[]>([
-    { id: 'q1', techId: 'automacao_armazem', name: 'Automação de Armazém', durationDays: 3, cost: 1500, icon: 'Bot' },
-    { id: 'q2', techId: 'crm_avancado', name: 'CRM Avançado', durationDays: 4, cost: 1800, icon: 'Users' },
-    { id: 'q3', techId: 'analise_financeira', name: 'Análise Financeira', durationDays: 5, cost: 5600, icon: 'BarChart2' },
-    { id: 'q4', techId: 'previsao_demanda', name: 'Previsão de Demanda', durationDays: 6, cost: 2000, icon: 'TrendingUp' },
+    {
+      id: 'q-1',
+      techId: 'esteiras_sorting',
+      name: 'Esteiras de Separação Rápida (Sorting)',
+      durationDays: 6,
+      cost: 11200,
+      icon: 'Layers',
+    },
   ]);
-  const [activeResearchProgress, setActiveResearchProgress] = useState<number>(65);
+  const [activeResearchProgress, setActiveResearchProgress] = useState<number>(45);
 
   const startResearch = (techId: string) => {
     const tech = techNodes.find((t) => t.id === techId);
     if (!tech) return;
+
+    if (company.cash < tech.cost) {
+      showToast(`Saldo insuficiente para pesquisar ${tech.name} ($${tech.cost} necessários).`);
+      return;
+    }
+
+    setCompany((prev) => ({ ...prev, cash: prev.cash - tech.cost }));
     setTechNodes((prev) =>
       prev.map((t) => (t.id === techId ? { ...t, status: 'researching' } : t))
     );
-    showToast(`Pesquisa iniciada: ${tech.name}`);
+    showToast(`Pesquisa iniciada: ${tech.name}!`);
   };
 
   const cancelResearch = () => {
-    showToast('Pesquisa atual cancelada.');
-    setActiveResearchProgress(0);
+    showToast('Pesquisa ativa cancelada. Recursos reembolsados parcialmente.');
   };
 
   const clearQueue = () => {
@@ -311,177 +454,185 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast('Fila de pesquisas limpa.');
   };
 
-  // HR State
+  // ==========================================
+  // HR & CANDIDATES
+  // ==========================================
   const [candidates, setCandidates] = useState<Candidate[]>([
     {
-      id: 'c1',
-      name: 'Lucas Almeida',
-      role: 'Motorista',
-      department: 'Motoristas',
-      rating: 4.6,
-      salary: 3500,
-      tags: ['Experiente', 'Trabalho em equipe'],
-      avatar: '👨‍✈️',
+      id: 'cand-1',
+      name: 'Rogério Batista',
+      role: 'Motorista Carreta Rodotrem (Cat. E)',
+      department: 'Operações & Transporte',
+      rating: 4.8,
+      salary: 4850,
+      tags: ['Pontualidade 98%', 'Curso MOPP', 'Direção Defensiva'],
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       actionType: 'Entrevista',
     },
     {
-      id: 'c2',
-      name: 'Fernanda Souza',
-      role: 'Ajudante',
-      department: 'Ajudantes',
-      rating: 4.2,
-      salary: 1800,
-      tags: ['Proativa', 'Organizada'],
-      avatar: '👩‍💼',
+      id: 'cand-2',
+      name: 'Juliana Fagundes',
+      role: 'Supervisora de Armazém WMS',
+      department: 'Armazenagem & Logística',
+      rating: 4.9,
+      salary: 5200,
+      tags: ['Lean Logistics', 'Gestão de 15 pessoas', 'Black Belt'],
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
       actionType: 'Teste prático',
     },
     {
-      id: 'c3',
-      name: 'Diego Martins',
-      role: 'Mecânico',
-      department: 'Oficina',
+      id: 'cand-3',
+      name: 'Cinthia Alencar',
+      role: 'Despachante Chefe de Tráfego',
+      department: 'Planejamento de Rotas',
       rating: 4.7,
-      salary: 3200,
-      tags: ['Técnico', 'Resolutivo'],
-      avatar: '👨‍🔧',
+      salary: 4300,
+      tags: ['Roteirização Avançada', 'Comunicação Rápida'],
+      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop&q=80',
       actionType: 'Entrevista',
     },
     {
-      id: 'c4',
-      name: 'Camila Rocha',
-      role: 'Analista Financeiro',
-      department: 'Financeiro',
-      rating: 4.5,
-      salary: 4000,
-      tags: ['Analítica', 'Comunicativa'],
-      avatar: '👩‍💻',
+      id: 'cand-4',
+      name: 'Marcos Vinicius',
+      role: 'Mecânico Diesel Sênior',
+      department: 'Manutenção & Oficina',
+      rating: 4.6,
+      salary: 4600,
+      tags: ['Injeção Eletrônica Common Rail', 'Scania & Volvo'],
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
       actionType: 'Avaliação',
-    },
-    {
-      id: 'c5',
-      name: 'Renato Nunes',
-      role: 'Ajudante de Estoque',
-      department: 'Estoque',
-      rating: 4.0,
-      salary: 1700,
-      tags: ['Dedicado', 'Aprende rápido'],
-      avatar: '🧑‍🏭',
-      actionType: 'Entrevista',
     },
   ]);
 
   const [employees, setEmployees] = useState<Employee[]>([
-    { id: 'e1', name: 'Ana Costa', role: 'Despachante', department: 'Despacho', status: 'Ativo (5 dias)', activeDays: 5, salary: 2800, avatar: '👩' },
-    { id: 'e2', name: 'Gustavo Rocha', role: 'Motorista', department: 'Motoristas', status: 'Ativo (12 dias)', activeDays: 12, salary: 3500, avatar: '👨' },
-    { id: 'e3', name: 'Helena Duarte', role: 'Ajudante', department: 'Ajudantes', status: 'Em experiência', activeDays: 3, salary: 1800, avatar: '👩' },
-    { id: 'e4', name: 'Tiago Santos', role: 'Mecânico', department: 'Oficina', status: 'Ativo (25 dias)', activeDays: 25, salary: 3200, avatar: '👨' },
-    { id: 'e5', name: 'Beatriz Lima', role: 'Analista', department: 'Financeiro', status: 'Ativo (18 dias)', activeDays: 18, salary: 4100, avatar: '👩' },
+    {
+      id: 'emp-1',
+      name: 'Carlos Mendes',
+      role: 'Mecânico Chefe',
+      department: 'Oficina',
+      status: 'Em serviço',
+      activeDays: 340,
+      salary: 4500,
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'emp-2',
+      name: 'Roberto Souza',
+      role: 'Motorista de Linha Pesada',
+      department: 'Operações',
+      status: 'Em trânsito (Rota BR-101)',
+      activeDays: 280,
+      salary: 4200,
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'emp-3',
+      name: 'Fernanda Lima',
+      role: 'Despachante Operacional',
+      department: 'Planejamento',
+      status: 'No posto de rádio',
+      activeDays: 190,
+      salary: 3900,
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop&q=80',
+    },
+    {
+      id: 'emp-4',
+      name: 'Lucas Paiva',
+      role: 'Operador de Empilhadeira',
+      department: 'Armazém',
+      status: 'Em expedição',
+      activeDays: 145,
+      salary: 2800,
+      avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80',
+    },
   ]);
 
   const [selectedCandidateModal, setSelectedCandidateModal] = useState<Candidate | null>(null);
-
-  const openCandidateModal = (candidate: Candidate) => {
-    setSelectedCandidateModal(candidate);
-  };
-
-  const closeCandidateModal = () => {
-    setSelectedCandidateModal(null);
-  };
+  const openCandidateModal = (candidate: Candidate) => setSelectedCandidateModal(candidate);
+  const closeCandidateModal = () => setSelectedCandidateModal(null);
 
   const hireCandidate = (candidateId: string) => {
-    const cand = candidates.find((c) => c.id === candidateId);
-    if (!cand) return;
+    const candidate = candidates.find((c) => c.id === candidateId);
+    if (!candidate) return;
+
+    setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
     setEmployees((prev) => [
       ...prev,
       {
-        id: `e-${Date.now()}`,
-        name: cand.name,
-        role: cand.role,
-        department: cand.department,
-        status: 'Contratado Recente',
+        id: `emp-${Date.now()}`,
+        name: candidate.name,
+        role: candidate.role,
+        department: candidate.department,
+        status: 'Disponível',
         activeDays: 1,
-        salary: cand.salary,
-        avatar: cand.avatar,
+        salary: candidate.salary,
+        avatar: candidate.avatar,
       },
     ]);
-    setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
-    setCompany((prev) => ({
-      ...prev,
-      cash: prev.cash - 500, // onboarding cost
-      dailyProfit: prev.dailyProfit + 150,
-      xp: prev.xp + 50,
-    }));
-    showToast(`${cand.name} foi contratado(a) com sucesso para ${cand.role}!`);
+    setSelectedCandidateModal(null);
+    showToast(`Parabéns! ${candidate.name} contratado(a) com sucesso!`);
   };
 
-  const trainingProgram: TrainingProgram[] = [
-    { name: 'Condução Econômica', count: '12/16 concluíram', progress: 75 },
-    { name: 'Segurança no Transporte', count: '18/30 concluíram', progress: 60 },
-    { name: 'Manutenção Básica', count: '8/20 concluíram', progress: 40 },
-    { name: 'Atendimento ao Cliente', count: '6/7 concluíram', progress: 85 },
-  ];
+  const [trainingProgram] = useState<TrainingProgram[]>([
+    { name: 'Direção Econômica & Defensiva', count: '14 motoristas inscritos', progress: 78 },
+    { name: 'Normas de Segurança em Cargas Perigosas (MOPP)', count: '8 motoristas inscritos', progress: 92 },
+    { name: 'Operação Segura de Empilhadeiras Elétricas', count: '6 operadores inscritos', progress: 64 },
+    { name: 'Gestão Ágil de Estoque WMS', count: '4 supervisores inscritos', progress: 85 },
+  ]);
 
-  // Maintenance Bays
+  // ==========================================
+  // MAINTENANCE & WORKSHOP
+  // ==========================================
   const [maintenanceBays, setMaintenanceBays] = useState<MaintenanceBay[]>([
     {
       id: 1,
       bayNumber: 1,
       isAvailable: false,
-      vehicleId: 'V-03',
-      vehicleName: 'Ford Transit - Van',
-      vehicleType: 'Van',
-      serviceType: 'Revisão Preventiva',
-      severity: 'normal',
-      progress: 65,
+      vehicleId: 'V-07',
+      vehicleName: 'Mercedes-Benz Actros 2651',
+      vehicleType: 'Cavalo Mecânico 6x4',
+      serviceType: 'Troca de Injetores e Calibração',
+      severity: 'emergency',
+      progress: 68,
       remainingTime: '2h 15min',
       mechanic: 'Carlos Mendes',
-      details: 'Troca de óleo, filtros e inspeção geral',
-      image: 'van',
+      details: 'Falha no sistema de injeção direta durante subida de serra.',
+      image: 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=300&auto=format&fit=crop&q=80',
     },
     {
       id: 2,
       bayNumber: 2,
       isAvailable: false,
-      vehicleId: 'T-01',
-      vehicleName: 'Volvo FH - Caminhão',
-      vehicleType: 'Caminhão',
-      serviceType: 'Falha no Sistema de Freios',
-      severity: 'emergency',
-      progress: 30,
-      remainingTime: '4h 30min',
-      mechanic: 'Bruno Silva',
-      details: 'Substituição de pastilhas, discos e checagem ABS',
-      image: 'truck-heavy',
+      vehicleId: 'V-04',
+      vehicleName: 'Volvo FH 540 Globetrotter',
+      vehicleType: 'Carreta Graneleira',
+      serviceType: 'Revisão Preventiva dos 80.000 km',
+      severity: 'scheduled',
+      progress: 88,
+      remainingTime: '45min',
+      mechanic: 'Marcos Vinicius',
+      details: 'Troca de óleo sintético, filtros de ar e alinhamento a laser.',
+      image: 'https://images.unsplash.com/photo-1519003722824-194d4455a60c?w=300&auto=format&fit=crop&q=80',
     },
     {
       id: 3,
       bayNumber: 3,
       isAvailable: false,
-      vehicleId: 'T-02',
-      vehicleName: 'Mercedes Atego - Truck',
-      vehicleType: 'Truck',
-      serviceType: 'Manutenção Programada',
-      severity: 'scheduled',
-      progress: 80,
-      remainingTime: '1h 20min',
-      mechanic: 'Eduardo Lima',
-      details: 'Revisão de 20.000 km + troca de filtros',
-      image: 'truck-medium',
+      vehicleId: 'V-12',
+      vehicleName: 'Iveco Daily 35-150 Furgão',
+      vehicleType: 'Utilitário Urbano',
+      serviceType: 'Substituição de Pastilhas de Freio',
+      severity: 'normal',
+      progress: 35,
+      remainingTime: '3h 30min',
+      mechanic: 'Carlos Mendes',
+      details: 'Desgaste severo por paradas sucessivas no centro urbano.',
+      image: 'https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?w=300&auto=format&fit=crop&q=80',
     },
     {
       id: 4,
       bayNumber: 4,
-      isAvailable: false,
-      vehicleId: 'C-01',
-      vehicleName: 'Toyota Corolla - Carro',
-      vehicleType: 'Carro',
-      serviceType: 'Superaquecimento do Motor',
-      severity: 'emergency',
-      progress: 85,
-      remainingTime: '3h 20min',
-      mechanic: 'Ana Costa',
-      details: "Diagnóstico, troca de bomba d'água e fluido",
-      image: 'car',
+      isAvailable: true,
     },
     {
       id: 5,
@@ -496,7 +647,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ]);
 
   const [spareParts, setSpareParts] = useState<SparePart[]>([
-    { id: 'p1', name: 'Pastilhas de Freio', quantity: 24, unit: 'un.', status: 'OK', price: 120 },
+    { id: 'p1', name: 'Pastilhas de Freio Pesadas', quantity: 12, unit: 'jogos', status: 'OK', price: 120 },
     { id: 'p2', name: 'Filtros de Óleo', quantity: 18, unit: 'un.', status: 'OK', price: 45 },
     { id: 'p3', name: 'Pneus 225/75 R16', quantity: 8, unit: 'un.', status: 'Baixo', price: 280 },
     { id: 'p4', name: 'Baterias 12v', quantity: 6, unit: 'un.', status: 'Crítico', price: 190 },
@@ -539,8 +690,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(`Veículo V-02 designado para a Baia ${bayNumber}!`);
   };
 
-  // Contracts
+  // ==========================================
+  // CONTRACTS & CLIENTS
+  // ==========================================
   const [contracts, setContracts] = useState<Contract[]>([
+    {
+      id: 'beltrao_corp',
+      clientName: 'Distribuidora Beltrão Alimentos',
+      segment: 'Atacado & Distribuição Alimentícia',
+      category: 'Corporativo',
+      contractType: 'Contrato Âncora Anual',
+      monthlyValue: 34000,
+      volume: '6 rotas diárias garantidas',
+      durationMonths: 12,
+      satisfaction: 98,
+      status: 'ativo',
+    },
     {
       id: 'alvorada',
       clientName: 'Supermercados Alvorada',
@@ -566,18 +731,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       status: 'ativo',
     },
     {
-      id: 'eshop',
-      clientName: 'E-Shop Brasil Express',
-      segment: 'E-commerce & Entregas',
-      category: 'E-commerce',
-      contractType: 'Contrato por Demanda',
-      monthlyValue: 19200,
-      volume: 'Coleta diária no CD',
-      durationMonths: 8,
-      satisfaction: 95,
-      status: 'ativo',
-    },
-    {
       id: 'farmacias_vida',
       clientName: 'Farmácias Vida & Saúde',
       segment: 'Farmacêutico / Sensível',
@@ -589,31 +742,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       satisfaction: 99,
       status: 'ativo',
     },
-    {
-      id: 'bebidas_central',
-      clientName: 'Distribuidora Central de Bebidas',
-      segment: 'Alimentos & Bebidas',
-      category: 'Varejo',
-      contractType: 'Contrato Anual',
-      monthlyValue: 22400,
-      volume: '5 rotas diárias',
-      durationMonths: 10,
-      satisfaction: 94,
-      status: 'ativo',
-    },
-    {
-      id: 'construtora_horiz',
-      clientName: 'Construtora Horizonte',
-      segment: 'Construção Civil',
-      category: 'Corporativo',
-      contractType: 'Contrato Trimestral',
-      monthlyValue: 16400,
-      volume: 'Cargas pesadas',
-      durationMonths: 3,
-      satisfaction: 90,
-      status: 'ativo',
-    },
-    // Proposals
     {
       id: 'prop-1',
       clientName: 'Rede Farma Mais',
@@ -664,7 +792,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast('Contrato renovado por mais 12 meses com reajuste de +8%!');
   };
 
-  // Facilities
+  // ==========================================
+  // FACILITIES
+  // ==========================================
   const [facilities, setFacilities] = useState<Facility[]>([
     {
       id: 'fac-1',
@@ -733,21 +863,6 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isAvailableForPurchase: true,
       purchaseCost: 85000,
     },
-    {
-      id: 'fac-6',
-      name: 'Terreno Disponível - Southgate Valley',
-      city: 'Southgate',
-      type: 'Terreno Disponível',
-      level: 0,
-      capacity: '6.500 m²',
-      bays: 0,
-      docks: 0,
-      employees: 0,
-      monthlyCost: 0,
-      efficiency: 0,
-      isAvailableForPurchase: true,
-      purchaseCost: 42000,
-    },
   ]);
 
   const upgradeFacility = (facilityId: string) => {
@@ -761,23 +876,19 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setCompany((prev) => ({
       ...prev,
       cash: prev.cash - upgradeCost,
-      regionalReputation: Math.min(100, prev.regionalReputation + 5),
+      regionalReputation: Math.min(100, prev.regionalReputation + 3),
     }));
     setFacilities((prev) =>
-      prev.map((f) =>
-        f.id === facilityId
-          ? { ...f, level: f.level + 1, efficiency: Math.min(100, f.efficiency + 4) }
-          : f
-      )
+      prev.map((f) => (f.id === facilityId ? { ...f, level: f.level + 1, efficiency: Math.min(100, f.efficiency + 4) } : f))
     );
-    showToast(`${fac.name} expandida para o Nível ${fac.level + 1}!`);
+    showToast(`Instalação "${fac.name}" promovida ao Nível ${fac.level + 1}!`);
   };
 
   const purchaseFacility = (facilityId: string) => {
     const fac = facilities.find((f) => f.id === facilityId);
-    if (!fac || !fac.purchaseCost) return;
-    if (company.cash < fac.purchaseCost) {
-      showToast(`Fundos insuficientes para compra de terreno ($${fac.purchaseCost.toLocaleString()} necessários).`);
+    if (!fac || !fac.isAvailableForPurchase) return;
+    if (company.cash < (fac.purchaseCost || 0)) {
+      showToast(`Fundos insuficientes para compra de terreno ($${fac.purchaseCost?.toLocaleString()} necessários).`);
       return;
     }
     setCompany((prev) => ({
@@ -806,7 +917,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     showToast(`Terreno adquirido! Nova base em obras.`);
   };
 
-  // Competitors
+  // ==========================================
+  // COMPETITORS (INCLUDING TRANSRÁPIDA LOG.)
+  // ==========================================
   const [competitors, setCompetitors] = useState<Competitor[]>([
     {
       id: 'barravento',
@@ -827,7 +940,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: 'transglobal',
       name: 'TransGlobal Express',
       rank: 1,
-      marketShare: 35,
+      marketShare: 33,
       fleetCount: 38,
       facilitiesCount: 6,
       reputation: 82,
@@ -839,48 +952,48 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isPlayer: false,
     },
     {
-      id: 'rapido_sul',
-      name: 'Rápido Sul Logística',
+      id: 'transrapida',
+      name: 'TransRápida Log. (Valdemir)',
       rank: 3,
       marketShare: 18,
-      fleetCount: 16,
+      fleetCount: 18,
       facilitiesCount: 3,
+      reputation: 74,
+      pricing: 'Agressivo / Guerra de Preços',
+      reliability: 'Média (82% no prazo)',
+      strengths: 'Rival histórico direto, pressão de preços na Zona Comercial, contatos em fretes rápidos.',
+      weaknesses: 'Alto endividamento, avarias frequentes e alta rotatividade de motoristas.',
+      color: '#e11d48',
+      isPlayer: false,
+    },
+    {
+      id: 'rapido_sul',
+      name: 'Rápido Sul Logística',
+      rank: 4,
+      marketShare: 13,
+      fleetCount: 14,
+      facilitiesCount: 2,
       reputation: 79,
       pricing: 'Baixo / Descontos agressivos',
       reliability: 'Média (81% no prazo)',
-      strengths: 'Preços muito competitivos, consolidação em rotas agrícolas do sul.',
-      weaknesses: 'Frota envelhecida, manutenção corretiva frequente e avarias pontuais.',
+      strengths: 'Preços competitivos, consolidação em rotas agrícolas do sul.',
+      weaknesses: 'Frota envelhecida, manutenção corretiva frequente.',
       color: '#3b82f6',
       isPlayer: false,
     },
     {
       id: 'veloce',
       name: 'Veloce Cargas',
-      rank: 4,
-      marketShare: 12,
-      fleetCount: 10,
+      rank: 5,
+      marketShare: 8,
+      fleetCount: 8,
       facilitiesCount: 2,
       reputation: 84,
       pricing: 'Moderado',
       reliability: 'Alta (91% no prazo)',
-      strengths: 'Entregas ultra-rápidas, aplicativo moderno e boa roteirização urbana.',
-      weaknesses: 'Capacidade limitada para cargas de grande porte e granel.',
+      strengths: 'Entregas urbanas rápidas e bom aplicativo mobile.',
+      weaknesses: 'Pouca capacidade para cargas pesadas.',
       color: '#8b5cf6',
-      isPlayer: false,
-    },
-    {
-      id: 'carga_segura',
-      name: 'Carga Segura Ltda',
-      rank: 5,
-      marketShare: 7,
-      fleetCount: 8,
-      facilitiesCount: 2,
-      reputation: 91,
-      pricing: 'Muito Alto / Premium',
-      reliability: 'Máxima (98% no prazo)',
-      strengths: 'Transporte blindado de valores e produtos químicos controlados.',
-      weaknesses: 'Custo inacessível para fretes convencionais e varejo.',
-      color: '#f59e0b',
       isPlayer: false,
     },
   ]);
@@ -902,7 +1015,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         cash: prev.cash + 12000,
         dailyProfit: prev.dailyProfit + 450,
       }));
-      showToast(`Contrato estratégico disputado com sucesso contra ${comp.name}!`);
+      showToast(`Contrato disputado com sucesso contra ${comp.name}!`);
     } else {
       setCompetitors((prev) =>
         prev.map((c) => {
@@ -911,7 +1024,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return c;
         })
       );
-      showToast(`Guerra de preços iniciada na região de ${comp.name}.`);
+      showToast(`Guerra de preços iniciada no território de ${comp.name}.`);
     }
   };
 
@@ -964,6 +1077,22 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Competitors
         competitors,
         attackCompetitor,
+
+        // Campaign (Documento 12)
+        acts,
+        currentActNumber: company.currentAct,
+        npcs,
+        crises,
+        crisesHistory,
+        activeCrisisModal,
+        selectedNpcForChat,
+        openCrisisModal,
+        closeCrisisModal,
+        resolveCrisis,
+        advanceAct,
+        openNpcChat,
+        closeNpcChat,
+        talkToNpc,
 
         // Toast
         toastMessage,

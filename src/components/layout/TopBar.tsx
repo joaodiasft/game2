@@ -14,14 +14,19 @@ import {
   FastForward,
   Check,
   X,
+  Compass,
 } from 'lucide-react';
 import { useGame } from '../../context/GameContext';
 
 export const TopBar: React.FC = () => {
-  const { company, updateCompanyName, togglePause, setSpeed } = useGame();
+  const { company, updateCompanyName, togglePause, setSpeed, setActiveTab, acts, crises } = useGame();
   const [isEditingName, setIsEditingName] = useState(false);
   const [tempName, setTempName] = useState(company.name);
   const [tempSlogan, setTempSlogan] = useState(company.slogan);
+
+  const activeAct = acts.find((a) => a.number === company.currentAct);
+  const currentCrisis = crises[`crise_ato_${company.currentAct}`];
+  const hasPendingCrisis = currentCrisis?.status === 'pending';
 
   const handleSaveName = () => {
     updateCompanyName(tempName, tempSlogan);
@@ -175,7 +180,45 @@ export const TopBar: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. Company Level & XP */}
+      {/* 4. Campaign Act Button */}
+      <button
+        onClick={() => setActiveTab('campanha')}
+        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border shadow-inner text-left transition-all group ${
+          hasPendingCrisis
+            ? 'bg-gradient-to-r from-rose-950/80 to-amber-950/70 border-rose-500/60 hover:border-rose-400'
+            : 'bg-[#0e1935] hover:bg-[#132247] border-cyan-500/40 hover:border-cyan-400'
+        }`}
+        title="Ver Jornada do Jogador: Da Garagem ao Império"
+      >
+        <div
+          className={`w-7 h-7 rounded-md flex items-center justify-center shrink-0 border transition-transform group-hover:scale-105 ${
+            hasPendingCrisis
+              ? 'bg-rose-500/20 border-rose-400 text-rose-400 animate-pulse'
+              : 'bg-cyan-500/20 border-cyan-500/40 text-cyan-400'
+          }`}
+        >
+          <Compass className="w-4 h-4" />
+        </div>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            <span
+              className={`text-[10px] font-extrabold uppercase tracking-tight ${
+                hasPendingCrisis ? 'text-rose-400' : 'text-cyan-400'
+              }`}
+            >
+              Ato {company.currentAct}: {activeAct?.title}
+            </span>
+            {hasPendingCrisis && (
+              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+            )}
+          </div>
+          <span className="text-[10px] text-slate-300 font-medium truncate max-w-[125px]">
+            {hasPendingCrisis ? '⚠️ Crise de Gestão!' : activeAct?.levelRange}
+          </span>
+        </div>
+      </button>
+
+      {/* 5. Company Level & XP */}
       <div className="flex items-center gap-2.5 bg-[#0e1935] px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-inner min-w-[150px]">
         <div className="w-7 h-7 rounded-md bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
           <Star className="w-4 h-4 fill-amber-400" />
